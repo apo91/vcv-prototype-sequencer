@@ -217,6 +217,13 @@ function sequencer(
       }
     };
   }
+  const v = (voltage, index) => ({
+    type: TYPES.VOLTAGE,
+    data: {
+      index: index || 0,
+      value: voltage || 0
+    }
+  });
   function reify(syntax) {
     if (syntax === $) {
       return {
@@ -239,10 +246,9 @@ function sequencer(
           value: Number(syntax)
         }
       };
+    } else if (!syntax || !syntax.type || TYPES.indexOf(syntax.type) === -1) {
+      throw new Error(`Unknown syntax: ${syntax}`);
     } else {
-      if (!syntax || !syntax.type || TYPES.indexOf(syntax.type) === -1) {
-        throw new Error(`Unknown syntax: ${syntax}`);
-      }
       return syntax;
     }
   }
@@ -352,6 +358,7 @@ function sequencer(
       randg,
       randv,
       g,
+      v,
       $
     })
   );
