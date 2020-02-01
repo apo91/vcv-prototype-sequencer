@@ -14,10 +14,16 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-function sequencer({ bpm, isLooped, isRunningByDefault }, phraseBuilder) {
+function sequencer(
+  { bpm, isLooped, isRunningByDefault, numGates, numVoltages },
+  phraseBuilder
+) {
+  const DEFAULT_BPM = 120;
   const DEFAULT_GATE_DURATION = 1 / 64;
   const GATE_ON_VOLTAGE = 12;
   const GATE_OFF_VOLTAGE = 0;
+  const DEFAULT_NUM_GATES = 6;
+  const DEFAULT_NUM_VOLTAGES = 6;
   const TYPES = {
     PHRASE: "PHRASE",
     DELAY: "DELAY",
@@ -31,6 +37,9 @@ function sequencer({ bpm, isLooped, isRunningByDefault }, phraseBuilder) {
     PROCESSING: "PROCESSING",
     PROCESSED: "PROCESSED"
   };
+  bpm = bpm || DEFAULT_BPM;
+  numGates = numGates || DEFAULT_NUM_GATES;
+  numVoltages = numVoltages || DEFAULT_NUM_VOLTAGES;
   class Sequencer {
     constructor(phrase) {
       this.phrase = phrase;
@@ -300,18 +309,35 @@ function sequencer({ bpm, isLooped, isRunningByDefault }, phraseBuilder) {
         : args.length === 1
         ? Math.floor(g() * (args[0] + 1))
         : args[0] + Math.floor(g() * (args[1] - args[0] + 1));
-    const randg = (...args) =>
-      args.length === 0
-        ? randi(0, 5)
-        : args.length === 1
-        ? randi(0, args[0])
-        : randi(args[0], args[1]);
-    const randv = (...args) =>
-      args.length === 0
-        ? randf(0, 10)
-        : args.length === 1
-        ? randf(0, args[0])
-        : randf(args[0], args[1]);
+    const randg = (...args) => ({
+      type: TYPES.GATE,
+      data: {
+        index:
+          args.length === 0
+            ? randi(0, numGates - 1)
+            : args.length === 1
+            ? randi(0, args[0])
+            : randi(args[0], args[1]),
+        duration: DEFAULT_GATE_DURATION
+      }
+    });
+    const randv = (...args) => ({
+      type: TYPES.VOLTAGE,
+      data: {
+        index:
+          args.length <= 2
+            ? randi(0, numVoltages - 1)
+            : args.length === 3
+            ? randi(0, args[2])
+            : randi(args[2], args[3]),
+        value:
+          args.length === 0
+            ? randf(0, 10)
+            : args.length === 1
+            ? randf(0, args[0])
+            : randf(args[0], args[1])
+      }
+    });
     return { randf, randi, randg, randv };
   };
   const { randf, randi, randg, randv } = mkrand("vcv-prototype-sequencer");
