@@ -1,3 +1,19 @@
+// vcv-prototype-sequencer - Livecoding sequencer for VCV Prototype module
+// Copyright (C) 2020  Andrii Polishchuk
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 function sequencer({ bpm, isLooped, isRunningByDefault }, phraseBuilder) {
   const DEFAULT_GATE_DURATION = 1 / 64;
   const GATE_ON_VOLTAGE = 12;
@@ -266,14 +282,50 @@ function sequencer({ bpm, isLooped, isRunningByDefault }, phraseBuilder) {
       }
     }
   }
-  function irand() {}
+  const strHashCode = str =>
+    [].reduce.call(str, (p, c, i, a) => (p << 5) - p + a.charCodeAt(i), 0);
+  const lcgRng01 = intSeed => () =>
+    ((2 ** 31 - 1) & (intSeed = Math.imul(48271, intSeed))) / 2 ** 31;
+  const mkrand = strSeed => {
+    const g = lcgRng01(strHashCode(strSeed));
+    const randf = (...args) =>
+      args.length === 0
+        ? g()
+        : args.length === 1
+        ? g() * args[0]
+        : args[0] + g() * (args[1] - args[0]);
+    const randi = (...args) =>
+      args.length === 0
+        ? Math.floor(g() * 2)
+        : args.length === 1
+        ? Math.floor(g() * (args[0] + 1))
+        : args[0] + Math.floor(g() * (args[1] - args[0] + 1));
+    const randg = (...args) =>
+      args.length === 0
+        ? randi(0, 5)
+        : args.length === 1
+        ? randi(0, args[0])
+        : randi(args[0], args[1]);
+    const randv = (...args) =>
+      args.length === 0
+        ? randf(0, 10)
+        : args.length === 1
+        ? randf(0, args[0])
+        : randf(args[0], args[1]);
+    return { randf, randi, randg, randv };
+  };
+  const { randf, randi, randg, randv } = mkrand("vcv-prototype-sequencer");
   return new Sequencer(
     phraseBuilder({
       phrase,
       concat,
       interleave,
+      mkrand,
+      randf,
+      randi,
+      randg,
+      randv,
       g,
-      irand,
       $
     })
   );
