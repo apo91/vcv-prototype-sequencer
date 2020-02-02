@@ -15,31 +15,62 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 function sequencer(
-  { bpm, isLooped, isRunningByDefault, numGates, numVoltages },
+  {
+    bpm,
+    isLooped,
+    isRunningByDefault,
+    numGates,
+    numVoltages,
+    voltageInterpolation
+  },
   phraseBuilder
 ) {
-  const DEFAULT_BPM = 120;
-  const DEFAULT_GATE_DURATION = 1 / 64;
-  const GATE_ON_VOLTAGE = 12;
-  const GATE_OFF_VOLTAGE = 0;
-  const DEFAULT_NUM_GATES = 6;
-  const DEFAULT_NUM_VOLTAGES = 6;
   const TYPES = {
-    PHRASE: "PHRASE",
     DELAY: "DELAY",
     GATE: "GATE",
     VOLTAGE: "VOLTAGE",
-    LOOPED_PHRASE: "LOOPED_PHRASE",
-    CHECKPOINT: "CHECKPOINT"
+    START_CHECKPOINT: "START_CHECKPOINT",
+    END_CHECKPOINT: "END_CHECKPOINT"
   };
   const ACTION_STATUSES = {
     NEW: "NEW",
     PROCESSING: "PROCESSING",
     PROCESSED: "PROCESSED"
   };
+  const INTERPOLATION_MODES = {
+    NONE: "NONE",
+    LINEAR: "LINEAR"
+  };
+  const GATE_ON_VOLTAGE = 12;
+  const GATE_OFF_VOLTAGE = 0;
+  const DEFAULT_BPM = 120;
+  const DEFAULT_GATE_DURATION = 1 / 64;
+  const DEFAULT_NUM_GATES = 6;
+  const DEFAULT_NUM_VOLTAGES = 6;
+  const DEFAULT_VOLTAGE_INTERPOLATION_MODE = INTERPOLATION_MODES.NONE;
   bpm = bpm || DEFAULT_BPM;
   numGates = numGates || DEFAULT_NUM_GATES;
   numVoltages = numVoltages || DEFAULT_NUM_VOLTAGES;
+  voltageInterpolation =
+    voltageInterpolation || DEFAULT_VOLTAGE_INTERPOLATION_MODE;
+  if (typeof voltageInterpolation === "string") {
+    voltageInterpolation = Array.from(
+      { length: numVoltages },
+      () => voltageInterpolation
+    );
+  } else if (voltageInterpolation instanceof Array) {
+    if (voltageInterpolation.length < numVoltages) {
+      throw new Error(
+        `Wrong voltageInterpolation array length = ${voltageInterpolation.length} when numVoltages = ${numVoltages}`
+      );
+    }
+  } else if (typeof voltageInterpolation === "object") {
+    voltageInterpolation = Array.from(
+      { length: numVoltages },
+      (_, i) => voltageInterpolation[i] || DEFAULT_VOLTAGE_INTERPOLATION_MODE
+    );
+  }
+  const fill = (n, f) => Array.from({ length: n }, f);
   class Sequencer {
     constructor(phrase) {
       this.phrase = phrase;
@@ -47,24 +78,96 @@ function sequencer(
       this.bpm = bpm;
       this.isLooped = isLooped;
       this.isRunning = isRunningByDefault ? true : false;
-      this.reset();
-    }
-    init(block) {
-      this.deltaTime = 1000 / (block.sampleRate / config.frameDivider);
-      this.reset();
-    }
-    reset() {
       this.time = 0;
       this.currentActionIndex = 0;
       this.currentActionObject = this.phrase[0];
       this.currentActionStatus = ACTION_STATUSES.NEW;
       this.currentActionState = undefined;
+      this.gates = fill(numGates, () => 0);
+      this.gateDeactivationTimestamps = fill(numGates, () => 0);
+      this.voltages = fill(numVoltages, () => 0);
+      this.voltageInterpolationTimestamps = fill(numVoltages, () => []);
+      this.voltageInterpolationCheckpoints = fill(numVoltages, () => []);
+      this.voltageInterpolationIndexes = fill(numVoltages, () => 0);
+      this.initVoltageInterpolationArrays();
+      this.startCheckpointActionIndex = 0;
+      this.endCheckpointActionIndex = 0;
+      this.startCheckpointTimestamp = 0;
+      this.endCheckpointTimestamp = 0;
+      this.initCheckpointData();
+    }
+    initVoltageInterpolationArrays() {
+      let time = 0;
+      for (let i = 0; i < this.phrase.length; i++) {
+        const action = this.phrase[i];
+        if (action.type === TYPES.DELAY) {
+          time += action.data.duration;
+        } else if (
+          action.type === TYPES.VOLTAGE &&
+          voltageInterpolation[action.data.index] === INTERPOLATION_MODES.LINEAR
+        ) {
+          const outputIndex = action.data.index;
+          const newVoltage = action.data.value;
+          this.voltageInterpolationCheckpoints[outputIndex].push(newVoltage);
+          this.voltageInterpolationTimestamps[outputIndex].push(time);
+        }
+      }
+      for (let i = 0; i < numVoltages; i++) {
+        if (voltageInterpolation[i] === INTERPOLATION_MODES.LINEAR) {
+          const checkpoints = this.voltageInterpolationCheckpoints[i];
+          const timestamps = this.voltageInterpolationTimestamps[i];
+          checkpoints.push(checkpoints[checkpoints.length - 1]);
+          timestamps.push(Infinity);
+        }
+      }
+    }
+    adjustVoltageInterpolationIndexes() {
+      for (let i = 0; i < numVoltages; i++) {
+        this.voltageInterpolationIndexes[i] = 0;
+        while (
+          this.time >
+          this.voltageInterpolationTimestamps[
+            this.voltageInterpolationIndexes[i] + 1
+          ]
+        ) {
+          this.voltageInterpolationIndexes[i] += 1;
+        }
+      }
+    }
+    initCheckpointData() {
+      let time = 0;
+      for (let i = 0; i < this.phrase.length; i++) {
+        const action = this.phrase[i];
+        if (action.type === TYPES.DELAY) {
+          time += action.data.duration;
+        } else if (action.type === TYPES.START_CHECKPOINT) {
+          this.startCheckpointActionIndex = i;
+          this.startCheckpointTimestamp = time;
+        } else if (action.type === TYPES.END_CHECKPOINT) {
+          this.endCheckpointActionIndex = i;
+          this.endCheckpointTimestamp = time;
+          return;
+        }
+      }
+    }
+    init(block) {
+      this.deltaTime = 1000 / (block.sampleRate / config.frameDivider);
+      this.time = this.startCheckpointTimestamp;
+      this.currentActionIndex = this.startCheckpointActionIndex;
+      this.currentActionObject = this.phrase[this.currentActionIndex];
+      this.currentActionStatus = ACTION_STATUSES.NEW;
+      this.currentActionState = undefined;
       this.gates = [0, 0, 0, 0, 0, 0];
       this.gateDeactivationTimestamps = [0, 0, 0, 0, 0, 0];
       this.voltages = [0, 0, 0, 0, 0, 0];
+      this.voltageInterpolationIndexes = fill(numVoltages, () => 0);
+      this.adjustVoltageInterpolationIndexes();
     }
     toggle() {
       this.isRunning = !this.isRunning;
+    }
+    beatTimeToRealTime(beatTime) {
+      return (60000 * beatTime) / (this.bpm / 4);
     }
     processActions() {
       if (!this.phrase) return;
@@ -77,7 +180,7 @@ function sequencer(
               case TYPES.GATE:
                 this.gates[action.data.index] = GATE_ON_VOLTAGE;
                 this.gateDeactivationTimestamps[action.data.index] =
-                  this.time + (60000 * action.data.duration) / (this.bpm / 4);
+                  this.time + this.beatTimeToRealTime(action.data.duration);
                 this.currentActionStatus = ACTION_STATUSES.PROCESSED;
                 break;
               case TYPES.VOLTAGE:
@@ -86,7 +189,7 @@ function sequencer(
                 break;
               case TYPES.DELAY:
                 this.currentActionState =
-                  this.time + (60000 * action.data.duration) / (this.bpm / 4);
+                  this.time + this.beatTimeToRealTime(action.data.duration);
                 this.currentActionStatus = ACTION_STATUSES.PROCESSING;
                 break;
               default:
@@ -129,9 +232,38 @@ function sequencer(
       }
     }
     processGates() {
-      for (let i = 0; i < 6; i++) {
+      for (let i = 0; i < numGates; i++) {
         if (this.time > this.gateDeactivationTimestamps[i]) {
           this.gates[i] = GATE_OFF_VOLTAGE;
+        }
+      }
+    }
+    processInterpolatedVoltages() {
+      const indexes = this.voltageInterpolationIndexes;
+      for (let i = 0; i < numVoltages; i++) {
+        if (voltageInterpolation[i] === INTERPOLATION_MODES.LINEAR) {
+          const timestamps = this.voltageInterpolationTimestamps[i];
+          const checkpoints = this.voltageInterpolationCheckpoints[i];
+          const startSegmentIndex = indexes[i];
+          const endSegmentIndex = startSegmentIndex + 1;
+          const startSegmentTimestamp = this.beatTimeToRealTime(
+            timestamps[startSegmentIndex]
+          );
+          if (this.time < startSegmentTimestamp) continue;
+          const endSegmentTimestamp = this.beatTimeToRealTime(
+            timestamps[endSegmentIndex]
+          );
+          const startSegmentVoltage = checkpoints[startSegmentIndex];
+          const endSegmentVoltage = checkpoints[endSegmentIndex];
+          const progress =
+            (this.time - startSegmentTimestamp) /
+            (endSegmentTimestamp - startSegmentTimestamp);
+          this.voltages[i] =
+            startSegmentVoltage +
+            progress * (endSegmentVoltage - startSegmentVoltage);
+          if (this.time >= endSegmentTimestamp) {
+            indexes[i] += 1;
+          }
         }
       }
     }
@@ -139,6 +271,7 @@ function sequencer(
       if (!this.isRunning) return;
       this.processActions();
       this.processGates();
+      this.processInterpolatedVoltages();
       this.time += this.deltaTime;
     }
   }
@@ -203,10 +336,11 @@ function sequencer(
     }
   }
   function $(phrase) {
-    return {
-      type: TYPES.LOOPED_PHRASE,
-      data: phrase
-    };
+    return [
+      { type: TYPES.START_CHECKPOINT },
+      ...phrase,
+      { type: TYPES.END_CHECKPOINT }
+    ];
   }
   function g(index, duration) {
     return {
@@ -227,7 +361,7 @@ function sequencer(
   function reify(syntax) {
     if (syntax === $) {
       return {
-        type: TYPES.CHECKPOINT
+        type: TYPES.START_CHECKPOINT
       };
     } else if (syntax === g) {
       return g(0);
@@ -246,7 +380,7 @@ function sequencer(
           value: Number(syntax)
         }
       };
-    } else if (!syntax || !syntax.type || TYPES.indexOf(syntax.type) === -1) {
+    } else if (!syntax || !syntax.type || !TYPES[syntax.type]) {
       throw new Error(`Unknown syntax: ${syntax}`);
     } else {
       return syntax;
