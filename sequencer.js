@@ -342,6 +342,19 @@ function sequencer(
         }
       }
     }
+    padToBars(n) {
+      const totalTime = this.totalTime();
+      if (totalTime > n || Math.abs(n - totalTime) < Number.EPSILON) {
+        return this;
+      } else {
+        return new Phrase(...this, {
+          type: TYPES.DELAY,
+          data: {
+            duration: n - totalTime
+          }
+        });
+      }
+    }
     repeat(n) {
       return new Phrase(
         ...[].concat(...Array.from({ length: Math.floor(n) }, () => this))
@@ -363,6 +376,16 @@ function sequencer(
             }
           : action
       );
+    }
+    totalTime() {
+      let time = 0;
+      for (let i = 0; i < this.length; i++) {
+        const action = this[i];
+        if (action.type === TYPES.DELAY) {
+          time += action.data.duration;
+        }
+      }
+      return time;
     }
   }
   function evalDuration(syntax) {
