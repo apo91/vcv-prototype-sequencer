@@ -176,7 +176,14 @@ function sequencer(
     processActions() {
       if (!this.phrase) return;
       while (true) {
-        if (this.currentActionIndex >= this.phrase.length) return;
+        if (this.currentActionIndex >= this.phrase.length) {
+          if (this.isLooped) {
+            this.restart();
+            continue;
+          } else {
+            return;
+          }
+        }
         const action = this.currentActionObject;
         switch (this.currentActionStatus) {
           case ACTION_STATUSES.NEW:
@@ -200,8 +207,12 @@ function sequencer(
                 this.currentActionStatus = ACTION_STATUSES.PROCESSED;
                 break;
               case TYPES.END_CHECKPOINT:
-                this.restart();
-                continue;
+                if (this.isLooped) {
+                  this.restart();
+                  continue;
+                } else {
+                  return;
+                }
               default:
                 throw new Error(
                   `processActions: Invalid action type '${action.type}' in status '${this.currentActionStatus}'`
