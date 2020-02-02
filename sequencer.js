@@ -313,7 +313,8 @@ function sequencer(
           const action = this[i];
           if (action.type === TYPES.DELAY) {
             const newTime = time + action.data.duration;
-            if (newTime > n || Math.abs(n - newTime) < Number.EPSILON) {
+            const isExactlyAtBoundary = Math.abs(n - newTime) < Number.EPSILON;
+            if (newTime > n || isExactlyAtBoundary) {
               newPhrase.push({
                 ...action,
                 data: {
@@ -321,12 +322,14 @@ function sequencer(
                   duration: n - time
                 }
               });
-              for (let j = 1; i + j < this.length; j++) {
-                const action = this[i + j];
-                if (action.type !== TYPES.DELAY) {
-                  newPhrase.push(action);
-                } else {
-                  break;
+              if (isExactlyAtBoundary) {
+                for (let j = 1; i + j < this.length; j++) {
+                  const action = this[i + j];
+                  if (action.type !== TYPES.DELAY) {
+                    newPhrase.push(action);
+                  } else {
+                    break;
+                  }
                 }
               }
               return newPhrase;
@@ -338,6 +341,11 @@ function sequencer(
           }
         }
       }
+    }
+    repeat(n) {
+      return new Phrase(
+        ...[].concat(...Array.from({ length: Math.floor(n) }, () => this))
+      );
     }
     mapGates(f) {
       let gateIterationIndex = 0;
