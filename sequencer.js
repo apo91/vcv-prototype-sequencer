@@ -309,7 +309,8 @@ function sequencer(
       let time = 0;
       const newPhrase = new Phrase();
       while (true) {
-        for (const action of this) {
+        for (let i = 0; i < this.length; i++) {
+          const action = this[i];
           if (action.type === TYPES.DELAY) {
             const newTime = time + action.data.duration;
             if (newTime > n || Math.abs(n - newTime) < Number.EPSILON) {
@@ -320,6 +321,14 @@ function sequencer(
                   duration: n - time
                 }
               });
+              for (let j = 1; i + j < this.length; j++) {
+                const action = this[i + j];
+                if (action.type !== TYPES.DELAY) {
+                  newPhrase.push(action);
+                } else {
+                  break;
+                }
+              }
               return newPhrase;
             }
             newPhrase.push(action);
