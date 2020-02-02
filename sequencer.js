@@ -44,7 +44,7 @@ function sequencer(
   const GATE_ON_VOLTAGE = 12;
   const GATE_OFF_VOLTAGE = 0;
   const DEFAULT_BPM = 120;
-  const DEFAULT_GATE_DURATION = 1 / 64;
+  const DEFAULT_GATE_DURATION = 1 / 512;
   const DEFAULT_NUM_GATES = 6;
   const DEFAULT_NUM_VOLTAGES = 6;
   const DEFAULT_VOLTAGE_INTERPOLATION_MODE = INTERPOLATION_MODES.NONE;
@@ -124,11 +124,12 @@ function sequencer(
     adjustVoltageInterpolationIndexes() {
       for (let i = 0; i < numVoltages; i++) {
         this.voltageInterpolationIndexes[i] = 0;
+        const timestamps = this.voltageInterpolationTimestamps[i];
         while (
           this.time >
-          this.voltageInterpolationTimestamps[
-            this.voltageInterpolationIndexes[i] + 1
-          ]
+          this.beatTimeToRealTime(
+            timestamps[this.voltageInterpolationIndexes[i] + 1]
+          )
         ) {
           this.voltageInterpolationIndexes[i] += 1;
         }
@@ -152,7 +153,10 @@ function sequencer(
     }
     init(block) {
       this.deltaTime = 1000 / (block.sampleRate / config.frameDivider);
-      this.time = this.startCheckpointTimestamp;
+      this.restart();
+    }
+    restart() {
+      this.time = this.beatTimeToRealTime(this.startCheckpointTimestamp);
       this.currentActionIndex = this.startCheckpointActionIndex;
       this.currentActionObject = this.phrase[this.currentActionIndex];
       this.currentActionStatus = ACTION_STATUSES.NEW;
@@ -192,6 +196,12 @@ function sequencer(
                   this.time + this.beatTimeToRealTime(action.data.duration);
                 this.currentActionStatus = ACTION_STATUSES.PROCESSING;
                 break;
+              case TYPES.START_CHECKPOINT:
+                this.currentActionStatus = ACTION_STATUSES.PROCESSED;
+                break;
+              case TYPES.END_CHECKPOINT:
+                this.restart();
+                continue;
               default:
                 throw new Error(
                   `processActions: Invalid action type '${action.type}' in status '${this.currentActionStatus}'`
