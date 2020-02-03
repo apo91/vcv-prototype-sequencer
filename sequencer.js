@@ -322,16 +322,17 @@ function sequencer(
                   duration: n - time
                 }
               });
-              if (isExactlyAtBoundary) {
-                for (let j = 1; i + j < this.length; j++) {
-                  const action = this[i + j];
-                  if (action.type !== TYPES.DELAY) {
-                    newPhrase.push(action);
-                  } else {
-                    break;
-                  }
-                }
-              }
+              // TODO: do I want this in some special cases?
+              // if (isExactlyAtBoundary) {
+              //   for (let j = 1; i + j < this.length; j++) {
+              //     const action = this[i + j];
+              //     if (action.type !== TYPES.DELAY) {
+              //       newPhrase.push(action);
+              //     } else {
+              //       break;
+              //     }
+              //   }
+              // }
               return newPhrase;
             }
             newPhrase.push(action);
@@ -344,8 +345,10 @@ function sequencer(
     }
     padToBars(n) {
       const totalTime = this.totalTime();
-      if (totalTime > n || Math.abs(n - totalTime) < Number.EPSILON) {
+      if (Math.abs(n - totalTime) < Number.EPSILON) {
         return this;
+      } else if (totalTime > n) {
+        return this.cycleToBars(n);
       } else {
         return new Phrase(...this, {
           type: TYPES.DELAY,
@@ -557,4 +560,10 @@ function sequencer(
       $
     })
   );
+}
+
+// This is used for tests only
+// Not needed in VCV
+if (module) {
+  module.exports.sequencer = sequencer;
 }

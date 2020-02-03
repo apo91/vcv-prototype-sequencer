@@ -1,0 +1,22 @@
+{
+  "name": "vcv-prototype-sequencer",
+  "version": "1.0.0",
+  "description": "",
+  "main": "sequencer.js",
+  "scripts": {
+    "test": "jest"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/apo91/vcv-prototype-sequencer.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/apo91/vcv-prototype-sequencer/issues"
+  },
+  "homepage": "https://github.com/apo91/vcv-prototype-sequencer#readme",
+  "devDependencies": {
+    "jest": "^25.1.0"
+  }
+}
