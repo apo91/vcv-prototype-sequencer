@@ -11,3 +11,22 @@ test("padToBars can cut phrase similarly to cycleToBars", () => {
     return fourToFloorCutByPadToBars;
   });
 });
+
+test("mapActions & shortcuts do actually work", () => {
+  sequencer({ bpm: 120 }, ({ phrase, g }) => {
+    const defaultGateDuration = g(0).data.duration;
+    const tresillo = phrase(g, "3/8", g, "3/8", g, "2/8");
+    const rightAnswer = [
+      { type: "GATE", data: { index: 1, duration: defaultGateDuration } },
+      { type: "DELAY", data: { duration: 0.375 } },
+      { type: "GATE", data: { index: 1, duration: defaultGateDuration } },
+      { type: "DELAY", data: { duration: 0.375 } },
+      { type: "GATE", data: { index: 1, duration: defaultGateDuration } },
+      { type: "DELAY", data: { duration: 0.25 } }
+    ];
+    expect(tresillo.mapActions("GATE", "index", () => 1)).toEqual(rightAnswer);
+    expect(tresillo.mapGi(() => 1)).toEqual(rightAnswer);
+    expect(tresillo.mapGi(1)).toEqual(rightAnswer);
+    return tresillo;
+  });
+});

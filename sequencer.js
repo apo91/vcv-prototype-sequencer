@@ -363,22 +363,33 @@ function sequencer(
         ...[].concat(...Array.from({ length: Math.floor(n) }, () => this))
       );
     }
-    mapGi(arg) {
-      let gateIterationIndex = 0;
+    mapActions(type, field, mapper) {
       return this.map(action =>
-        action.type === TYPES.GATE
+        action.type === type
           ? {
               ...action,
               data: {
                 ...action.data,
                 index:
-                  typeof arg === "function"
-                    ? arg(action.data.index, gateIterationIndex++)
-                    : arg
+                  typeof mapper === "function"
+                    ? mapper(action.data[field], action.data)
+                    : mapper
               }
             }
           : action
       );
+    }
+    mapGi(mapper) {
+      return this.mapActions(TYPES.GATE, "index", mapper);
+    }
+    mapGd(mapper) {
+      return this.mapActions(TYPES.GATE, "duration", mapper);
+    }
+    mapVi(mapper) {
+      return this.mapActions(TYPES.VOLTAGE, "index", mapper);
+    }
+    mapVv(mapper) {
+      return this.mapActions(TYPES.VOLTAGE, "value", mapper);
     }
     totalTime() {
       let time = 0;
