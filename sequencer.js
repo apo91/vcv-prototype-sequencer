@@ -363,7 +363,7 @@ function sequencer(
         ...[].concat(...Array.from({ length: Math.floor(n) }, () => this))
       );
     }
-    mapGates(f) {
+    mapGi(arg) {
       let gateIterationIndex = 0;
       return this.map(action =>
         action.type === TYPES.GATE
@@ -372,9 +372,9 @@ function sequencer(
               data: {
                 ...action.data,
                 index:
-                  typeof f === "function"
-                    ? f(action.data.index, gateIterationIndex++)
-                    : f
+                  typeof arg === "function"
+                    ? arg(action.data.index, gateIterationIndex++)
+                    : arg
               }
             }
           : action
