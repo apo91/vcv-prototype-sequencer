@@ -29,8 +29,9 @@ function sequencer(
     DELAY: "DELAY",
     GATE: "GATE",
     VOLTAGE: "VOLTAGE",
-    START_CHECKPOINT: "START_CHECKPOINT",
-    END_CHECKPOINT: "END_CHECKPOINT"
+    CHECKPOINT: "CHECKPOINT",
+    LOOP_START_CHECKPOINT: "LOOP_START_CHECKPOINT",
+    LOOP_END_CHECKPOINT: "LOOP_END_CHECKPOINT"
   };
   const ACTION_STATUSES = {
     NEW: "NEW",
@@ -94,6 +95,8 @@ function sequencer(
       this.endCheckpointActionIndex = 0;
       this.startCheckpointTimestamp = 0;
       this.endCheckpointTimestamp = 0;
+      this.labeledCheckpointTimestamps = {};
+      this.labeledCheckpointActionIndexes = {};
       this.initCheckpointData();
     }
     initVoltageInterpolationArrays() {
@@ -139,15 +142,24 @@ function sequencer(
       let time = 0;
       for (let i = 0; i < this.phrase.length; i++) {
         const action = this.phrase[i];
-        if (action.type === TYPES.DELAY) {
-          time += action.data.duration;
-        } else if (action.type === TYPES.START_CHECKPOINT) {
-          this.startCheckpointActionIndex = i;
-          this.startCheckpointTimestamp = time;
-        } else if (action.type === TYPES.END_CHECKPOINT) {
-          this.endCheckpointActionIndex = i;
-          this.endCheckpointTimestamp = time;
-          return;
+        switch (action.type) {
+          case TYPES.DELAY:
+            time += action.data.duration;
+            break;
+          case TYPES.LOOP_START_CHECKPOINT:
+            this.startCheckpointActionIndex = i;
+            this.startCheckpointTimestamp = time;
+            break;
+          case TYPES.LOOP_END_CHECKPOINT:
+            this.endCheckpointActionIndex = i;
+            this.endCheckpointTimestamp = time;
+            break;
+          case TYPES.CHECKPOINT:
+            this.labeledCheckpointActionIndexes[action.data.label] = i;
+            this.labeledCheckpointTimestamps[action.data.label] = time;
+            break;
+          default:
+            break;
         }
       }
     }
@@ -155,10 +167,24 @@ function sequencer(
       this.deltaTime = 1000 / (block.sampleRate / config.frameDivider);
       this.restart();
     }
-    restart() {
-      this.time = this.beatTimeToRealTime(this.startCheckpointTimestamp);
-      this.currentActionIndex = this.startCheckpointActionIndex;
-      this.currentActionObject = this.phrase[this.currentActionIndex];
+    restart(label) {
+      if (label) {
+        if (
+          this.labeledCheckpointTimestamps[label] == null ||
+          this.labeledCheckpointActionIndexes[label] == null
+        ) {
+          throw new Error(`Label ${label} not found!`);
+        }
+        this.time = this.beatTimeToRealTime(
+          this.labeledCheckpointTimestamps[label]
+        );
+        this.currentActionIndex = this.labeledCheckpointActionIndexes[label];
+        this.currentActionObject = this.phrase[this.currentActionIndex];
+      } else {
+        this.time = this.beatTimeToRealTime(this.startCheckpointTimestamp);
+        this.currentActionIndex = this.startCheckpointActionIndex;
+        this.currentActionObject = this.phrase[this.currentActionIndex];
+      }
       this.currentActionStatus = ACTION_STATUSES.NEW;
       this.currentActionState = undefined;
       this.gates = [0, 0, 0, 0, 0, 0];
@@ -203,10 +229,13 @@ function sequencer(
                   this.time + this.beatTimeToRealTime(action.data.duration);
                 this.currentActionStatus = ACTION_STATUSES.PROCESSING;
                 break;
-              case TYPES.START_CHECKPOINT:
+              case TYPES.CHECKPOINT:
                 this.currentActionStatus = ACTION_STATUSES.PROCESSED;
                 break;
-              case TYPES.END_CHECKPOINT:
+              case TYPES.LOOP_START_CHECKPOINT:
+                this.currentActionStatus = ACTION_STATUSES.PROCESSED;
+                break;
+              case TYPES.LOOP_END_CHECKPOINT:
                 if (this.isLooped) {
                   this.restart();
                   continue;
@@ -410,11 +439,19 @@ function sequencer(
       return Number(syntax);
     }
   }
-  function $(phrase) {
+  function $(label) {
+    return {
+      type: TYPES.CHECKPOINT,
+      data: {
+        label
+      }
+    };
+  }
+  function $$(phrase) {
     return [
-      { type: TYPES.START_CHECKPOINT },
+      { type: TYPES.LOOP_START_CHECKPOINT },
       ...phrase,
-      { type: TYPES.END_CHECKPOINT }
+      { type: TYPES.LOOP_END_CHECKPOINT }
     ];
   }
   function g(index, duration) {
@@ -434,9 +471,9 @@ function sequencer(
     }
   });
   function reify(syntax) {
-    if (syntax === $) {
+    if (syntax === $$) {
       return {
-        type: TYPES.START_CHECKPOINT
+        type: TYPES.LOOP_START_CHECKPOINT
       };
     } else if (syntax === g) {
       return g(0);
@@ -568,7 +605,8 @@ function sequencer(
       randv,
       g,
       v,
-      $
+      $,
+      $$
     })
   );
 }
