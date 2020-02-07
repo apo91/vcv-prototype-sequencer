@@ -499,7 +499,7 @@ function sequencer(
     }
   }
   function phrase(...args) {
-    return new Phrase(...args.map(reify));
+    return new Phrase(...args.flat(Infinity).map(reify));
   }
   phrase.iterate = (x, fn) => {
     let ys;
@@ -507,17 +507,10 @@ function sequencer(
       ys = Array.from({ length: x }, (_, i) => i);
     } else if (x instanceof Array) {
       ys = x;
+    } else {
+      throw new Error("phrase.iterate: Unknown arg type");
     }
-    let result = [];
-    for (y of ys) {
-      const z = fn(y);
-      if (z instanceof Array) {
-        result.push(...z.flat(Infinity));
-      } else {
-        result.push(z);
-      }
-    }
-    return phrase(...result);
+    return phrase(ys.map(fn));
   };
   function concat(...args) {
     return new Phrase(...[].concat(...args));

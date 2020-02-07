@@ -50,3 +50,22 @@ test("phrase.iterate is nice and works pretty well", () => {
     return p1;
   });
 });
+
+test("phrase can flatten its args", () => {
+  sequencer({ bpm: 128 }, ({ phrase, g }) => {
+    const tresillo_exemplar = phrase(g, "3/8", g, "3/8", g, "2/8");
+    const tresillo1 = phrase([g, "3/8"], [g, "3/8"], [g, "2/8"]);
+    const tresillo2 = phrase([
+      [g, "3/8"],
+      [g, "3/8"],
+      [g, "2/8"]
+    ]);
+    const tresillo3 = phrase(g, "3/8", [g, "3/8"], g, "2/8");
+    const tresillo4 = phrase(g, "3/8", [[g, "3/8"], [[[[g]]]], "2/8"]);
+    expect(tresillo1).toEqual(tresillo_exemplar);
+    expect(tresillo2).toEqual(tresillo_exemplar);
+    expect(tresillo3).toEqual(tresillo_exemplar);
+    expect(tresillo4).toEqual(tresillo_exemplar);
+    return tresillo_exemplar;
+  });
+});
