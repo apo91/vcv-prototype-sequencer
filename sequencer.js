@@ -501,6 +501,24 @@ function sequencer(
   function phrase(...args) {
     return new Phrase(...args.map(reify));
   }
+  phrase.iterate = (x, fn) => {
+    let ys;
+    if (typeof x === "number") {
+      ys = Array.from({ length: x }, (_, i) => i);
+    } else if (x instanceof Array) {
+      ys = x;
+    }
+    let result = [];
+    for (y of ys) {
+      const z = fn(y);
+      if (z instanceof Array) {
+        result.push(...z.flat(Infinity));
+      } else {
+        result.push(z);
+      }
+    }
+    return phrase(...result);
+  };
   function concat(...args) {
     return new Phrase(...[].concat(...args));
   }

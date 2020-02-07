@@ -30,3 +30,23 @@ test("mapActions & shortcuts do actually work", () => {
     return tresillo;
   });
 });
+
+test("phrase.iterate is nice and works pretty well", () => {
+  sequencer({ bpm: 128 }, ({ phrase, g }) => {
+    const defaultGateDuration = g(0).data.duration;
+    const p1_exemplar = phrase(g, "1/4").cycleToBars(1);
+    const p1 = phrase.iterate(4, () => [g, "1/4"]);
+    expect(p1).toEqual(p1_exemplar);
+    const p2_exemplar = [
+      { type: "GATE", data: { index: 0, duration: defaultGateDuration } },
+      { type: "DELAY", data: { duration: 1 } },
+      { type: "GATE", data: { index: 0, duration: defaultGateDuration } },
+      { type: "DELAY", data: { duration: 1 / 2 } },
+      { type: "GATE", data: { index: 0, duration: defaultGateDuration } },
+      { type: "DELAY", data: { duration: 1 / 3 } }
+    ];
+    const p2 = phrase.iterate([1, 2, 3], i => [g, `1/${i}`]);
+    expect(p2).toEqual(p2_exemplar);
+    return p1;
+  });
+});
