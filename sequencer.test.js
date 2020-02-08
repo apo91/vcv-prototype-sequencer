@@ -69,3 +69,30 @@ test("phrase can flatten its args", () => {
     return tresillo_exemplar;
   });
 });
+
+test("vbind is fine", () => {
+  sequencer({ bpm: 128 }, ({ phrase, v, vbind }) => {
+    const pan = vbind(0);
+    const exemplar1 = phrase(v(-10), "1/2", v(10), "1/2");
+    const exemplar2 = phrase(v(-10, 0), "1/2", v(10, 0), "1/2");
+    const panning_phrase = phrase(pan(-10), "1/2", pan(10), "1/2");
+    expect(panning_phrase).toEqual(exemplar1);
+    expect(panning_phrase).toEqual(exemplar2);
+    return panning_phrase;
+  });
+});
+
+test("partially applied gbind can be reified", () => {
+  sequencer({ bpm: 130 }, ({ phrase, g, gbind }) => {
+    const defaultGateDuration = g(0).data.duration;
+    const kick = gbind(1);
+    const tresillo_exemplar = phrase(g(1), "3/8", g(1), "3/8", g(1), "2/8");
+    const tresillo = phrase(
+      [kick, "3/8"],
+      [kick, "3/8"],
+      [kick(defaultGateDuration), "2/8"]
+    );
+    expect(tresillo).toEqual(tresillo_exemplar);
+    return tresillo_exemplar;
+  });
+});

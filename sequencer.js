@@ -432,37 +432,45 @@ function sequencer(
     }
   }
   function evalDuration(syntax) {
-    if (syntax.indexOf("/") !== -1) {
-      const [q, d] = syntax.split("/").map(s => Number(s.trim()));
-      return Number(q) / Number(d);
+    if (typeof syntax === "string") {
+      if (syntax.indexOf("/") !== -1) {
+        const [q, d] = syntax.split("/").map(s => Number(s.trim()));
+        return Number(q) / Number(d);
+      } else {
+        return Number(syntax);
+      }
+    } else if (typeof syntax === "number") {
+      return syntax;
     } else {
-      return Number(syntax);
+      throw new Error(
+        `evalDuration: Unknown duration syntax "${syntax}" of type ${typeof syntax}`
+      );
     }
   }
-  function $(label) {
-    return {
-      type: TYPES.CHECKPOINT,
-      data: {
-        label
-      }
-    };
-  }
-  function $$(phrase) {
-    return [
-      { type: TYPES.LOOP_START_CHECKPOINT },
-      ...phrase,
-      { type: TYPES.LOOP_END_CHECKPOINT }
-    ];
-  }
-  function g(index, duration) {
-    return {
-      type: TYPES.GATE,
-      data: {
-        index: index || 0,
-        duration: duration ? evalDuration(duration) : DEFAULT_GATE_DURATION
-      }
-    };
-  }
+  const tagged = (tag, fn) => {
+    fn.tag = tag;
+    return fn;
+  };
+  const $ = label => ({
+    type: TYPES.CHECKPOINT,
+    data: {
+      label
+    }
+  });
+  const $$ = tagged("$$", phrase => [
+    { type: TYPES.LOOP_START_CHECKPOINT },
+    ...phrase,
+    { type: TYPES.LOOP_END_CHECKPOINT }
+  ]);
+  const g = tagged("g", (index, duration) => ({
+    type: TYPES.GATE,
+    data: {
+      index: index || 0,
+      duration: duration ? evalDuration(duration) : DEFAULT_GATE_DURATION
+    }
+  }));
+  const gbind = index =>
+    tagged("gbind_closure", duration => g(index, duration));
   const v = (voltage, index) => ({
     type: TYPES.VOLTAGE,
     data: {
@@ -470,13 +478,16 @@ function sequencer(
       value: voltage || 0
     }
   });
+  const vbind = index => voltage => v(voltage, index);
   function reify(syntax) {
-    if (syntax === $$) {
+    if (syntax.tag === "$$") {
       return {
         type: TYPES.LOOP_START_CHECKPOINT
       };
-    } else if (syntax === g) {
+    } else if (syntax.tag === "g") {
       return g(0);
+    } else if (syntax.tag === "gbind_closure") {
+      return syntax();
     } else if (typeof syntax === "string") {
       return {
         type: TYPES.DELAY,
@@ -615,7 +626,9 @@ function sequencer(
       randg,
       randv,
       g,
+      gbind,
       v,
+      vbind,
       $,
       $$
     })
