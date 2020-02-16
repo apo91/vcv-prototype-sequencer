@@ -96,3 +96,15 @@ test("partially applied gbind can be reified", () => {
     return tresillo_exemplar;
   });
 });
+
+test("phrase.imperative is tricky as fucking hell, still works somehow", () => {
+  sequencer({ bpm: 130 }, ({ phrase, g }) => {
+    const tresillo_exemplar = phrase(g(1), "3/8", g(1), "3/8", g(1), "2/8");
+    const tresillo = phrase.imperative(1, function() {
+      this.emit(g(1));
+      this.emit("3/8");
+    });
+    expect(tresillo).toEqual(tresillo_exemplar);
+    return tresillo_exemplar;
+  });
+});

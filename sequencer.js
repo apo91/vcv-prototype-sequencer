@@ -523,6 +523,47 @@ function sequencer(
     }
     return phrase(ys.map(fn));
   };
+  phrase.imperative = (n, fn) => {
+    const DONE = {};
+    const result = new Phrase();
+    let time = 0;
+    const context = {
+      emit: syntax => {
+        const action = reify(syntax);
+        if (action.type === TYPES.DELAY) {
+          const newTime = time + action.data.duration;
+          const isExactlyAtBoundary = Math.abs(n - newTime) < Number.EPSILON;
+          if (newTime > n || isExactlyAtBoundary) {
+            result.push({
+              ...action,
+              data: {
+                ...action.data,
+                duration: n - time
+              }
+            });
+            time = n;
+            throw DONE;
+          }
+          time = newTime;
+          result.push(action);
+        } else {
+          result.push(action);
+        }
+      }
+    };
+    const boundFn = fn.bind(context);
+    while (true) {
+      try {
+        boundFn();
+      } catch (e) {
+        if (e === DONE) {
+          return result;
+        } else {
+          throw e;
+        }
+      }
+    }
+  };
   function concat(...args) {
     return new Phrase(...[].concat(...args));
   }
