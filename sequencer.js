@@ -19,6 +19,7 @@ function sequencer(
     bpm,
     isLooped,
     isRunningByDefault,
+    shiftKnob,
     numGates,
     numVoltages,
     voltageInterpolation
@@ -317,11 +318,22 @@ function sequencer(
         }
       }
     }
-    tick() {
+    processOffsets(block) {
+      const shiftValue01 = block.knobs[shiftKnob];
+      const shiftOffset = Math.floor(shiftValue01 * 10) * 6;
+      for (let i = 0; i < 6; i++) {
+        this.voltages[i] = this.voltages[i + shiftOffset];
+        this.gates[i] = this.gates[i + shiftOffset];
+      }
+    }
+    tick(block) {
       if (!this.isRunning) return;
       this.processActions();
       this.processGates();
       this.processInterpolatedVoltages();
+      if (shiftKnob != null) {
+        this.processOffsets(block);
+      }
       this.time += this.deltaTime;
     }
   }
